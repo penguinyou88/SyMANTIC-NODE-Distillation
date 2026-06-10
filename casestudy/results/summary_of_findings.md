@@ -196,7 +196,42 @@ To test if extending the training time horizon resolves the state coupling issue
 
 ---
 
-## 9. Recommendations for Future Work
+## 9. Depth 7 Search: Deep Nested Fractions ($\frac{dv}{dt}$)
+
+To verify if SyMANTIC can construct and screen complex, multi-level nested fractions when search depth restrictions are lifted, we ran a targeted study on state variable $v$ ($\frac{dv}{dt}$) with `n_expansion = 7`, `sis_features = 50`, and $L_1$ regularization.
+
+### Discovered Pareto Front models ($R^2 > 0.9$ vs. Teacher Gradients)
+* **Model 1 (Complexity 10.5, $R^2 = 0.946$):**
+  $$\frac{dv}{dt} \approx -0.1159(u \cdot v) - 0.0592(v - y) - 0.2243v + 0.1032$$
+* **Model 2 (Complexity 96.1, $R^2 = 0.971$):**
+  $$\frac{dv}{dt} \approx -0.0542\left(\frac{\frac{v/u}{y^2}}{\frac{u+y}{y^2}}\right) - 0.5074\left(\frac{v}{\frac{v+y}{v^2}}\right) - 0.2071\left(\frac{(u+v)\frac{u}{v}}{\frac{u+y}{v^2}}\right) + 0.0967$$
+* **Model 3 (Complexity 101.8, $R^2 = 0.982$):**
+  $$\frac{dv}{dt} \approx -0.3683\left(\frac{v}{\frac{v+y}{v^2}}\right) - 0.1682\left(\frac{(u+v)\frac{u}{v}}{\frac{u+y}{v^2}}\right) - 0.1330\left(\frac{(u+v)y^{-1}}{\frac{u+y}{v \cdot y}}\right) + 0.1045$$
+* **Model 4 (Complexity 228.9, $R^2 = 0.991$):**
+  $$\frac{dv}{dt} \approx -0.1108\left(\frac{\frac{u}{v-y} \frac{u+v}{v-y}}{\frac{u+y}{v-y} \frac{v^{-1}}{v-y}}\right) - 0.1129\left(\frac{\left(\frac{u+v}{v-y}\right)^2}{\frac{u+y}{v-y} \frac{v^{-1}}{v-y}}\right) - 0.0329\left(\frac{\left(\frac{u+v}{v-y}\right)^2}{\frac{u+y}{v-y} \frac{u-v}{v-y}}\right) + 0.1371$$
+
+### Quantitative Trajectory Performance Comparison
+We simulated the hybrid system (combining true equations for $du/dt$ and $dy/dt$ with the discovered $dv/dt$ equations) across all 64 trajectories to compare against the ground-truth clean data and the teacher NODE model:
+
+| Model | Complexity | Gradient $R^2$ | Train RMSE | Train $R^2$ | Test (OOD) RMSE | Test (OOD) $R^2$ |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **NODE (Teacher)** | — | 1.0000 | 0.019691 | 0.9858 | 0.029069 | 0.9768 |
+| **Model 1 (`C=10.5`)** | 10.51 | 0.9465 | **0.007576** | **0.9979** | **0.010375** | **0.9970** |
+| **Model 2 (`C=96.1`)** | 96.13 | 0.9708 | **0.005966** | **0.9987** | **0.008177** | **0.9982** |
+| **Model 3 (`C=101.8`)** | 101.83 | 0.9823 | **0.005622** | **0.9988** | **0.007732** | **0.9984** |
+| **Model 4 (`C=228.9`)** | 228.91 | 0.9912 | **0.005363** | **0.9989** | **0.007610** | **0.9984** |
+
+### Depth-7 Comparison Plots
+
+#### 1. Trajectory Integration Comparison (State $v$)
+![Depth 7 Trajectory Comparison](/Users/youpeng/.gemini/antigravity/brain/3203bd1c-f5a0-4965-b08e-5e8008a02f0e/depth7_dvdt_comparison.png)
+
+#### 2. Quantitative Fit & Test Performance Comparison
+![Depth 7 Performance Comparison](/Users/youpeng/.gemini/antigravity/brain/3203bd1c-f5a0-4965-b08e-5e8008a02f0e/depth7_performance_comparison.png)
+
+---
+
+## 10. Recommendations for Future Work
 * **Perturbation Experiments**: Train the teacher NODE model on highly diverse, decoupled trajectories to break state-to-state correlations.
   * *Why random initial conditions (e.g. via Sobol) are not enough:* Although the initial states at $t = 0$ are decoupled and diverse, forward time integration under the coupled system equations naturally causes states $(u(t), v(t), y(t))$ to fall onto a low-dimensional manifold, introducing strong state-to-state correlations. For example, $y(t) = y_0 e^{0.1 t}$ acts as a monotonic time proxy, making it highly correlated with the relaxation of $u(t)$ and $v(t)$ over time. Since the NODE is trained on continuous trajectories, the teacher MLP uses these correlations to represent the vector field (e.g. predicting that $du/dt$ depends on $y$), which the student then inherits during distillation.
   * *How to decouple trajectories:*
