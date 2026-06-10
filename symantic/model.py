@@ -301,7 +301,7 @@ class SymanticModel:
                         return FitResult(rmse=rmse, equation=equation, r2=r2, all_equations=equations)
                     else: continue
 
-        elif self.no_of_operators==None:
+        elif True:
 
             st = time.time()
             rmse,equation,r2,final = fcc.feature_space_construction(self.operators,self.df,self.no_of_operators,self.device,self.initial_screening,self.metrics,dimension=self.dimension,sis_features=self.sis_features,disp=self.disp,pareto=self.pareto,max_features=self.max_features,level_pruning=self.level_pruning,**self._reg_kwargs).feature_space()
@@ -314,9 +314,30 @@ class SymanticModel:
             x,y,names,complexity = fcc.feature_space_construction(self.operators,self.df,self.no_of_operators,self.device,self.initial_screening,disp=self.disp,max_features=self.max_features).feature_space()
             from .regression.factory import get_regressor
             _Reg = get_regressor(self.regularization, dimensional=False)
-            rmse, equation,r2,r,c,n,intercepts,coeffs,_ =  _Reg(x,y,names,complexity,self.dimension,self.sis_features,self.device,**self._reg_kwargs).regressor_fit()
+            rmse, equation,r2,r,c,n,intercepts,coeffs,r2_value =  _Reg(x,y,names,complexity,self.dimension,self.sis_features,self.device,**self._reg_kwargs).regressor_fit()
 
-            return FitResult(rmse=rmse, equation=equation, r2=r2)
+            # For fixed-depth mode, build the Pareto front dataframe so it supports
+            # backward-compatible 2-element tuple unpacking (res, pareto_df) in auto-depth mode.
+            from .pareto import pareto as pareto_util
+            s = pareto_util(r, c).pareto_front()
+            
+            rmse_final = r[s].cpu().numpy()
+            complexity_final = c[s].cpu().numpy()
+            names_final = [n[i] for i in s.tolist()]
+            intercepts_final = intercepts[s].cpu().numpy()
+            r2_final = r2_value[s].cpu().numpy()
+            coeffs_final = coeffs[s].cpu().numpy().tolist()
+            
+            data_final = {
+                'Loss': rmse_final,
+                'Complexity': complexity_final,
+                'Equations': names_final,
+                'Intercepts': intercepts_final.tolist(),
+                'Coefficients': coeffs_final,
+                'Score': r2_final
+            }
+            final = pd.DataFrame(data_final)
+            return self._build_pareto_result(final)
 
       else:
 

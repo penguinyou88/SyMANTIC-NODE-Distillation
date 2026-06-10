@@ -1256,7 +1256,7 @@ class feature_space_construction:
     other_operators = [op for op in self.operators if op not in ['+', '-', '*', '/']]
     
     
-    if self.no_of_operators == None:
+    if self.no_of_operators == None or self.level_pruning:
         
         #if self.disp: print('############################################################# Implementing Automatic Expansion and construction of sparse models..!!! ######################################################################')
 
@@ -1434,6 +1434,15 @@ class feature_space_construction:
         i = 2
         
         while True:
+            # Predict the size of combinations and other operators before generating them to avoid OOM
+            n_base = self.df_feature_values.shape[1]
+            n_comb = n_base * (n_base - 1) // 2 * len(basic_operators)
+            n_single = n_base * len(other_operators)
+            est_total = n_base + n_comb + n_single
+            if est_total > self.max_features:
+                if self.disp:
+                    print(f'Estimated feature space ({est_total} features) exceeds max_features={self.max_features}. Breaking before expansion.')
+                break
             
             values, names = self.combinations(basic_operators,i)
 
@@ -1602,7 +1611,8 @@ class feature_space_construction:
             # With level_pruning, feature count stays small so max_features
             # never triggers.  Stop if no RMSE improvement or depth >= 10.
             if self.level_pruning:
-                if i >= 10:
+                limit_depth = self.no_of_operators if self.no_of_operators is not None else 10
+                if i >= limit_depth:
                     if self.disp:
                         print(f'*** Level pruning: reached max depth {i}, stopping. ***\n')
                     break
