@@ -7,9 +7,9 @@ Studies how observation noise affects:
 2. Symbolic regression (SINDy, SyMANTIC) distillation from NODE gradients
 
 System: Genetic toggle switch (3-state)
-    du/dt = 1/(1 + v^2) - u
-    dv/dt = 1/(1 + (1 + u/(1+y)^2)^2) - v
-    dy/dt = 0.1 * y
+    du_dt = 1 / (1 + v**2) - u
+    dv_dt = 1 / (1 + (u / (1 + y)**2)**2) - v  # The deep nested feature
+    dy_dt = -0.1 * y
 
 Usage:
     python casestudy/run_noise_study.py
@@ -67,15 +67,15 @@ TRAIN_Y0 = [0.06, 0.19]
 
 # Time configuration
 T_SPAN = [0.0, 20.0]
-N_STEPS = 101       # dt = 0.2s
+N_STEPS = 40       # dt = 0.5s
 T_SPLIT = 15.0       # train on [0, 15), test-ext-t on [15, 20]
 
 # Noise levels to study
-NOISE_LEVELS = [0.0]
+NOISE_LEVELS = [0.0, 0.001, 0.005, 0.01]
 
 # NODE configuration
 NODE_HIDDEN_DIM = 64
-NODE_N_EPOCHS = 1500
+NODE_N_EPOCHS = 3000
 NODE_LR = 1e-3
 NODE_LAMBDA_COLLOC = 1.0
 
@@ -83,14 +83,14 @@ NODE_LAMBDA_COLLOC = 1.0
 N_SOBOL_ICS = 64
 
 # Output directories
-RESULTS_DIR = SCRIPT_DIR / "results" / "collocation_noise_free"
+RESULTS_DIR = SCRIPT_DIR / "results" / "corrected_ground_truth_less_data"
 MODELS_DIR = RESULTS_DIR / "models"
 
 # Ground truth equations for reference
 GROUND_TRUTH_EQUATIONS = {
     "du/dt": "1/(1 + v**2) - u",
-    "dv/dt": "1/(1 + (1 + u/(1+y)**2)**2) - v",
-    "dy/dt": "0.1*y",
+    "dv/dt": "1/(1 + (u/(1+y)**2)**2) - v",
+    "dy/dt": "-0.1*y",
 }
 
 
@@ -285,7 +285,7 @@ def train_node(train_data, t_train, n_epochs=NODE_N_EPOCHS, lr=NODE_LR, use_val_
         func.train()
         optimizer.zero_grad()
 
-        # odeint with batched initial conditions
+        # Batched integration (permute to B, T, D)
         pred_trajs = odeint(func, y0s, t_tensor, method="rk4").permute(1, 0, 2)
 
         # State variance-normalized trajectory loss
@@ -760,7 +760,7 @@ def run_symantic_sr(states, grads):
             metrics=[0.01, 0.99],
             dimension=3,
             sis_features=20,
-            disp=False
+            disp=True
         )
 
         with patch("builtins.input", return_value="no"):

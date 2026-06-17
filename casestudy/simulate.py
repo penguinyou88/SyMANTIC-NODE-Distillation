@@ -8,9 +8,9 @@ def dynamic_system(t, state):
     """
     ODE system from the image:
 
-        du/dt = 1 / (1 + v^2) - u
-        dv/dt = 1 / (1 + (1 + u / (1 + y)^2)^2) - v
-        dy/dt = 0.1 * y
+        du/dt = 1/(1 + v^2) - u
+        dv/dt = 1/(1 + (u/(1+y)^2)^2) - v
+        dy/dt = -0.1 * y
 
     Parameters
     ----------
@@ -27,8 +27,8 @@ def dynamic_system(t, state):
     u, v, y = state
 
     du_dt = 1.0 / (1.0 + v**2) - u
-    dv_dt = 1.0 / (1.0 + (1.0 + u / (1.0 + y)**2)**2) - v
-    dy_dt = 0.1 * y
+    dv_dt = 1.0 / (1.0 + (u / (1.0 + y)**2)**2) - v
+    dy_dt = -0.1 * y
 
     return np.array([du_dt, dv_dt, dy_dt], dtype=float)
 
