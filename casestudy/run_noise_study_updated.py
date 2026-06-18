@@ -56,14 +56,14 @@ DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 SEED = 42
 
 # Initial condition bounds (full domain for Sobol sampling)
-U0_BOUNDS = [0.5, 2.0]
-V0_BOUNDS = [0.05, 0.2]
-Y0_BOUNDS = [0.05, 0.2]
+U0_BOUNDS = [0.1, 5.0]
+V0_BOUNDS = [0.01, 0.5]
+Y0_BOUNDS = [0.01, 0.5]
 
 # Training IC subdomain (inner mask, ~78% of full Sobol volume)
-TRAIN_U0 = [0.6, 1.9]
-TRAIN_V0 = [0.06, 0.19]
-TRAIN_Y0 = [0.06, 0.19]
+TRAIN_U0 = [0.25, 4.75]
+TRAIN_V0 = [0.025, 0.475]
+TRAIN_Y0 = [0.025, 0.475]
 
 # Time configuration
 T_SPAN = [0.0, 20.0]
@@ -71,7 +71,7 @@ N_STEPS = 40       # dt = 0.5s
 T_SPLIT = 15.0       # train on [0, 15), test-ext-t on [15, 20]
 
 # Noise levels to study
-NOISE_LEVELS = [0.15, 0.2, 0.25]
+NOISE_LEVELS = [0.0, 0.1, 0.2, 0.4]
 
 # NODE configuration
 NODE_HIDDEN_DIM = 64
@@ -83,7 +83,7 @@ NODE_LAMBDA_COLLOC = 1.0
 N_SOBOL_ICS = 64
 
 # Output directories
-RESULTS_DIR = SCRIPT_DIR / "results" / "corrected_ground_truth_less_data_higher_noise_pct"
+RESULTS_DIR = SCRIPT_DIR / "results" / "corrected_ground_truth_larger_domain_noise_pct"
 MODELS_DIR = RESULTS_DIR / "models"
 
 # Ground truth equations for reference

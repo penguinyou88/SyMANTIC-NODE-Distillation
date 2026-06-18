@@ -1,0 +1,17 @@
+{
+  "discovered_equations": {
+    "du/dt": "-0.3598*v + -0.7872*u + 0.7760",
+    "dv/dt": "-0.7819*v + 0.6973*y + -0.3163*u + 0.7504",
+    "dy/dt": "-0.0963*(y+(y)**2) + 0.0052*u + 0.0059*v - 0.0076"
+  },
+  "training_worst_traj_idx": 37,
+  "training_worst_traj_mse": 0.00011980160641242655,
+  "test_best_traj_idx": 15,
+  "test_best_traj_mse": 2.1832914043992652e-05,
+  "test_best_traj_r2": 0.9989040141955494,
+  "test_worst_traj_idx": 7,
+  "test_worst_traj_mse": 0.0001245092521094836,
+  "test_worst_traj_r2": 0.9963398657330014,
+  "average_test_mse": 7.450305378377957e-05,
+  "average_test_r2": 0.9921307370853747
+}

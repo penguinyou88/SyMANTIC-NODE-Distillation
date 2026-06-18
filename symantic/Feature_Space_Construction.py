@@ -1412,7 +1412,8 @@ class feature_space_construction:
                     mic_score = mine.compute_score(self.df_feature_values[:,i_mic], self.Target_column)
 
                     screen1 = torch.cat((screen1,torch.tensor(mic_score).reshape(1,-1)),dim=1)
-                top_100_values,top_100_indices = torch.topk(screen1.flatten(),k=20)
+                k_val = min(self.sis_features, screen1.flatten().shape[0])
+                top_100_values,top_100_indices = torch.topk(screen1.flatten(),k=k_val)
 
                 # laplacian_scores = feature_selection.laplacian_score_with_target(self.df_feature_values, self.Target_column.reshape(-1, 1))
                 # top_100_values, top_100_indices = torch.topk(torch.abs(laplacian_scores), k=20)
@@ -1758,7 +1759,8 @@ class feature_space_construction:
                 
                 screen1,_ = cstats(self.df_feature_values.numpy().T,self.Target_column.numpy().reshape(1,-1),alpha=0.6,c=30,est='mic_approx')
                 
-                top_100_values,top_100_indices = torch.topk(torch.tensor(screen1.flatten()),k=10)
+                k_val = min(self.sis_features, screen1.flatten().shape[0])
+                top_100_values,top_100_indices = torch.topk(torch.tensor(screen1.flatten()),k=k_val)
                 
                 self.df_feature_values = self.df_feature_values[:,top_100_indices]
                 
