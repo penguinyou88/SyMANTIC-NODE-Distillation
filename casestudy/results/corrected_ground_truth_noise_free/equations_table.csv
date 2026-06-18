@@ -1,7 +1,0 @@
-noise_level,method,state,equation,complexity
-0.0,SINDy,du/dt, 0.812 1 + -0.623 u + -0.298 v +  0.018 y + -0.129 u^2 + -0.172 u v + -0.009 u y + -0.096 v^2 + -0.045 v y,16.0
-0.0,SINDy,dv/dt, 0.802 1 + -0.290 u + -0.637 v +  0.698 y + -0.023 u^2 + -0.263 u v +  0.095 u y + -0.071 v^2 + -0.118 v y +  0.212 y^2,16.0
-0.0,SINDy,dy/dt,-0.099 y,2.0
-0.0,SyMANTIC,du/dt,-0.5588*v + -0.9605*u + 1.0349,7.0
-0.0,SyMANTIC,dv/dt,-0.8931*v + 0.6677*y + -0.3910*u + 0.8814,9.0
-0.0,SyMANTIC,dy/dt,-0.0999*y + 0.0001,4.0
