@@ -71,7 +71,7 @@ N_STEPS = 40       # dt = 0.5s
 T_SPLIT = 15.0       # train on [0, 15), test-ext-t on [15, 20]
 
 # Noise levels to study
-NOISE_LEVELS = [0.0, 0.001, 0.005, 0.01]
+NOISE_LEVELS = [0.15, 0.2, 0.25]
 
 # NODE configuration
 NODE_HIDDEN_DIM = 64
@@ -83,7 +83,7 @@ NODE_LAMBDA_COLLOC = 1.0
 N_SOBOL_ICS = 64
 
 # Output directories
-RESULTS_DIR = SCRIPT_DIR / "results" / "corrected_ground_truth_less_data"
+RESULTS_DIR = SCRIPT_DIR / "results" / "corrected_ground_truth_less_data_higher_noise_pct"
 MODELS_DIR = RESULTS_DIR / "models"
 
 # Ground truth equations for reference
@@ -127,15 +127,18 @@ def generate_data():
         dataset_clean.append(res["states"])
     dataset_clean = np.array(dataset_clean)  # (N_ICs, N_STEPS, 3)
 
-    # Add noise
+    # Add noise as a percentage of each state variable's standard deviation
     rng = np.random.default_rng(SEED)
     dataset_noisy = {}
     for std in NOISE_LEVELS:
-        noise = rng.normal(0, std, size=dataset_clean.shape)
+        noise = np.zeros_like(dataset_clean)
+        for d in range(dataset_clean.shape[-1]):
+            state_std = np.std(dataset_clean[:, :, d])
+            noise[:, :, d] = rng.normal(0, std * state_std, size=dataset_clean[:, :, d].shape)
         dataset_noisy[std] = dataset_clean + noise
 
     print(f"Clean dataset shape: {dataset_clean.shape}")
-    print(f"Noise levels: {NOISE_LEVELS}")
+    print(f"Noise levels: {NOISE_LEVELS} (interpreted as % of state standard deviation)")
 
     return ics, t_eval, dataset_clean, dataset_noisy
 
@@ -360,17 +363,17 @@ def train_or_load_nodes(dataset_splits, t_train):
     np.random.seed(SEED)
 
     for std in NOISE_LEVELS:
-        model_path = MODELS_DIR / f"node_noise_{std}.pt"
+        model_path = MODELS_DIR / f"node_noise_pct_{std}.pt"
 
         if model_path.exists():
-            print(f"\n--- Loading saved NODE for noise={std} from {model_path} ---")
+            print(f"\n--- Loading saved NODE for noise={std*100:.1f}% from {model_path} ---")
             func = ODEFunc(hidden_dim=NODE_HIDDEN_DIM).to(DEVICE)
             func.load_state_dict(torch.load(model_path, map_location=DEVICE, weights_only=True))
             func.eval()
             node_models[std] = func
             training_logs[std] = [{"epoch": 0, "loss": float("nan"), "note": "loaded from disk"}]
         else:
-            print(f"\n--- Training NODE for noise={std} ---")
+            print(f"\n--- Training NODE for noise={std*100:.1f}% ---")
             train_data = dataset_splits[std]["train_trajs"]
             func, log = train_node(train_data, t_train, use_val_split=(std > 0.0))
             func.eval()
@@ -468,7 +471,7 @@ def evaluate_nodes(node_models, dataset_splits, t_eval, t_split_index):
             "r2_ext_x0": r2_ext_x0,
         }
         node_metrics.append(metrics)
-        print(f"  Noise={std:.2f} | Train RMSE={rmse_train:.6f} (R2={r2_train:.4f}) | "
+        print(f"  Noise={std*100:.1f}% | Train RMSE={rmse_train:.6f} (R2={r2_train:.4f}) | "
               f"Ext-T RMSE={rmse_ext_t:.6f} (R2={r2_ext_t:.4f}) | "
               f"Ext-X0 RMSE={rmse_ext_x0:.6f} (R2={r2_ext_x0:.4f})")
 
@@ -539,16 +542,16 @@ def plot_gradient_parity(node_models, dataset_splits, t_eval, t_split_index):
             ax.grid(True, linestyle=":", alpha=0.5)
             ax.legend(fontsize=10)
             
-        plt.suptitle(f"NODE Gradient Parity Plot (Noise Std = {std})", fontsize=16, weight="bold")
+        plt.suptitle(f"NODE Gradient Parity Plot (Noise Level = {std*100:.1f}%)", fontsize=16, weight="bold")
         plt.tight_layout()
         
-        plot_path = RESULTS_DIR / f"node_parity_noise_{std}.png"
+        plot_path = RESULTS_DIR / f"node_parity_noise_pct_{std}.png"
         plt.savefig(plot_path, dpi=150)
         plt.close()
         print(f"Saved gradient parity figure to {plot_path}")
         
         # Print gradient parity metrics directly to the terminal
-        print(f"  Gradient Parity R2 (Noise={std}):")
+        print(f"  Gradient Parity R2 (Noise={std*100:.1f}%):")
         for idx, var in enumerate(var_names):
             r2_tr = r2_score(true_train_grads[:, idx], node_train_grads[:, idx])
             r2_te = r2_score(true_test_grads[:, idx], node_test_grads[:, idx])
@@ -655,10 +658,10 @@ def plot_all_results(node_models, sr_results, dataset_splits, t_eval, t_split_in
         for col_idx in range(6):
             axes[2, col_idx].set_xlabel("Time (s)", fontsize=12)
             
-        plt.suptitle(f"NODE & Distilled SR Model Performance (Noise Std = {std})", fontsize=18, weight='bold')
+        plt.suptitle(f"NODE & Distilled SR Model Performance (Noise Level = {std*100:.1f}%)", fontsize=18, weight='bold')
         plt.tight_layout()
         
-        plot_path = RESULTS_DIR / f"node_trajectories_noise_{std}.png"
+        plot_path = RESULTS_DIR / f"node_trajectories_noise_pct_{std}.png"
         plt.savefig(plot_path, dpi=150)
         plt.close()
         print(f"Saved trajectory comparison figure to {plot_path}")
@@ -820,7 +823,7 @@ def run_symbolic_regression(node_models, dataset_splits):
     sr_results = {}
 
     for std in NOISE_LEVELS:
-        print(f"\n--- Noise level: {std} ---")
+        print(f"\n--- Noise level: {std*100:.1f}% ---")
         model = node_models[std]
         states, grads = get_node_gradient_data(model, dataset_splits, std)
 
@@ -930,7 +933,7 @@ def evaluate_sr_models(sr_results, dataset_splits, t_eval, t_split_index):
         for sr_name, sr_result in [("SINDy", sr_results[std].get("sindy")),
                                     ("SyMANTIC", sr_results[std].get("symantic"))]:
             if sr_result is None:
-                print(f"  Noise={std}, {sr_name}: SKIPPED (no model)")
+                print(f"  Noise={std*100:.1f}%, {sr_name}: SKIPPED (no model)")
                 sr_metrics.append({
                     "noise_level": std,
                     "method": sr_name,
@@ -1033,7 +1036,7 @@ def evaluate_sr_models(sr_results, dataset_splits, t_eval, t_split_index):
                 "r2_ext_x0": r2_ext_x0,
             })
 
-            print(f"  Noise={std:.2f}, {sr_name:>8s} | Train RMSE={rmse_train:.6f} (R2={r2_train:.4f}) | "
+            print(f"  Noise={std*100:.1f}%, {sr_name:>8s} | Train RMSE={rmse_train:.6f} (R2={r2_train:.4f}) | "
                   f"Ext-T RMSE={rmse_ext_t:.6f} (R2={r2_ext_t:.4f}) | "
                   f"Ext-X0 RMSE={rmse_ext_x0:.6f} (R2={r2_ext_x0:.4f})")
 
