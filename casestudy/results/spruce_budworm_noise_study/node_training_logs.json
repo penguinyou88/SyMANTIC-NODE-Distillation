@@ -1,0 +1,30 @@
+{
+  "0.0": [
+    {
+      "epoch": 0,
+      "loss": NaN,
+      "val_loss": NaN
+    }
+  ],
+  "0.02": [
+    {
+      "epoch": 0,
+      "loss": NaN,
+      "val_loss": NaN
+    }
+  ],
+  "0.05": [
+    {
+      "epoch": 0,
+      "loss": NaN,
+      "val_loss": NaN
+    }
+  ],
+  "0.1": [
+    {
+      "epoch": 0,
+      "loss": NaN,
+      "val_loss": NaN
+    }
+  ]
+}
