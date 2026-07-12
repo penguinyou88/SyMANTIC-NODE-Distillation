@@ -104,10 +104,36 @@ def _make_rhs_from_symantic_equations(equations, feature_names=("w",)):
 
 
 # ---------------------------------------------------------------------------
+# SINDy Refitting Helpers (to preserve full-precision coefficients in plots)
+# ---------------------------------------------------------------------------
+
+def get_sindy_model(model, splits, std):
+    import pysindy as ps
+    train_trajs = splits["train_trajs"]
+    states = train_trajs.reshape(-1, 1)
+    states_tensor = torch.tensor(states, dtype=torch.float32).to(DEVICE)
+    with torch.no_grad():
+        grads = model(0, states_tensor).cpu().numpy()
+    
+    feature_names = ["w"]
+    library = ps.PolynomialLibrary(degree=3)
+    optimizer = ps.STLSQ(threshold=1e-4)
+    sindy_model = ps.SINDy(feature_library=library, optimizer=optimizer)
+    sindy_model.fit(states, t=1.0, x_dot=grads, feature_names=feature_names)
+    return sindy_model
+
+
+def _make_rhs_from_sindy_model(sindy_model):
+    def rhs(t, y):
+        return sindy_model.predict(y.reshape(1, -1)).flatten()
+    return rhs
+
+
+# ---------------------------------------------------------------------------
 # Plotting functions
 # ---------------------------------------------------------------------------
 
-def plot_16_trajectories_ext_t(model, sindy_eqs, symantic_eqs, splits, t_eval, noise_std):
+def plot_16_trajectories_ext_t(model, sindy_model, symantic_eqs, splits, t_eval, noise_std):
     train_ics = splits["train_ics"]
     n_ics = len(train_ics)
     if n_ics < 16:
@@ -125,8 +151,8 @@ def plot_16_trajectories_ext_t(model, sindy_eqs, symantic_eqs, splits, t_eval, n
     
     pred_node = get_node_predictions(model, ics_show, t_eval)
     
-    if sindy_eqs:
-        rhs_sindy = _make_rhs_from_sindy_equations(sindy_eqs)
+    if sindy_model is not None:
+        rhs_sindy = _make_rhs_from_sindy_model(sindy_model)
         pred_sindy = np.array([integrate_from_ic(rhs_sindy, ic, t_eval) for ic in ics_show])
     else:
         pred_sindy = np.full((len(ics_show), len(t_eval), 1), np.nan)
@@ -172,7 +198,7 @@ def plot_16_trajectories_ext_t(model, sindy_eqs, symantic_eqs, splits, t_eval, n
     print(f"Saved 16 trajectories time-extrapolation plot to {plot_path}")
 
 
-def plot_16_trajectories_ext_x0(model, sindy_eqs, symantic_eqs, splits, t_eval, noise_std):
+def plot_16_trajectories_ext_x0(model, sindy_model, symantic_eqs, splits, t_eval, noise_std):
     test_ics = splits["test_ext_x0_ics"]
     n_ics = len(test_ics)
     if n_ics < 16:
@@ -187,8 +213,8 @@ def plot_16_trajectories_ext_x0(model, sindy_eqs, symantic_eqs, splits, t_eval, 
     
     pred_node = get_node_predictions(model, ics_show, t_eval)
     
-    if sindy_eqs:
-        rhs_sindy = _make_rhs_from_sindy_equations(sindy_eqs)
+    if sindy_model is not None:
+        rhs_sindy = _make_rhs_from_sindy_model(sindy_model)
         pred_sindy = np.array([integrate_from_ic(rhs_sindy, ic, t_eval) for ic in ics_show])
     else:
         pred_sindy = np.full((len(ics_show), len(t_eval), 1), np.nan)
@@ -230,8 +256,8 @@ def plot_16_trajectories_ext_x0(model, sindy_eqs, symantic_eqs, splits, t_eval, 
     print(f"Saved 16 trajectories state-extrapolation plot to {plot_path}")
 
 
-def plot_metrics_distribution(model, sindy_eqs, symantic_eqs, splits, t_eval, t_split_index, noise_std):
-    rhs_sindy = _make_rhs_from_sindy_equations(sindy_eqs) if sindy_eqs else None
+def plot_metrics_distribution(model, sindy_model, symantic_eqs, splits, t_eval, t_split_index, noise_std):
+    rhs_sindy = _make_rhs_from_sindy_model(sindy_model) if sindy_model is not None else None
     rhs_symantic = _make_rhs_from_symantic_equations(symantic_eqs) if symantic_eqs else None
     
     # 1. Ext-T metrics
@@ -393,10 +419,110 @@ def plot_metrics_distribution(model, sindy_eqs, symantic_eqs, splits, t_eval, t_
     print(f"Saved metric distributions plot to {plot_path}")
 
 
+def plot_paper_figure(model, sindy_model, symantic_eqs, splits, t_eval, t_train, noise_std):
+    """
+    Generate publication-ready figure: 2 rows x 3 columns.
+    Top row: 3 random Train trajectories.
+    Bottom row: 3 random Test (OOD) trajectories.
+    """
+    # 1. Use the first 3 train and 3 test ICs (matching node_trajectories_noise_pct_XX.png)
+    train_ics_show = splits["train_ics"][:3]
+    test_ics_show = splits["test_ext_x0_ics"][:3]
+
+    # Clean ground truth
+    clean_show_train = splits["clean_train"][:3]
+    clean_ext_show_train = splits["clean_ext_t"][:3]
+    clean_full_train = np.concatenate([clean_show_train, clean_ext_show_train], axis=1)
+
+    clean_full_test = splits["clean_ext_x0"][:3]
+
+    # Noisy training data
+    noisy_show_train = splits["train_trajs"][:3]
+
+    # NODE predictions
+    pred_train_node = get_node_predictions(model, train_ics_show, t_eval)
+    pred_test_node = get_node_predictions(model, test_ics_show, t_eval)
+
+    # SINDy integration
+    if sindy_model is not None:
+        rhs_sindy = _make_rhs_from_sindy_model(sindy_model)
+        pred_train_sindy = np.array([integrate_from_ic(rhs_sindy, ic, t_eval) for ic in train_ics_show])
+        pred_test_sindy = np.array([integrate_from_ic(rhs_sindy, ic, t_eval) for ic in test_ics_show])
+    else:
+        pred_train_sindy = np.full((3, len(t_eval), 1), np.nan)
+        pred_test_sindy = np.full((3, len(t_eval), 1), np.nan)
+
+    # SyMANTIC integration
+    if symantic_eqs:
+        rhs_symantic = _make_rhs_from_symantic_equations(symantic_eqs)
+        pred_train_symantic = np.array([integrate_from_ic(rhs_symantic, ic, t_eval) for ic in train_ics_show])
+        pred_test_symantic = np.array([integrate_from_ic(rhs_symantic, ic, t_eval) for ic in test_ics_show])
+    else:
+        pred_train_symantic = np.full((3, len(t_eval), 1), np.nan)
+        pred_test_symantic = np.full((3, len(t_eval), 1), np.nan)
+
+    # 2. Create subplots (sharex=False so all subplots get ticks and labels)
+    fig, axes = plt.subplots(2, 3, figsize=(18, 12), sharex=False, sharey=False)
+
+    # Plot Train ICs (top row: axes[0, c])
+    for c in range(3):
+        ax = axes[0, c]
+        ax.plot(t_eval, clean_full_train[c, :, 0], 'k-', linewidth=2, label='True (Clean)' if c == 0 else "")
+        ax.scatter(t_train, noisy_show_train[c, :, 0], color='red', alpha=0.4, s=12, label='Noisy Train Data' if c == 0 else "")
+        ax.plot(t_eval, pred_train_node[c, :, 0], 'b--', linewidth=1.5, label='NODE' if c == 0 else "")
+
+        if not np.isnan(pred_train_sindy[c]).all():
+            ax.plot(t_eval, pred_train_sindy[c, :, 0], 'g-.', linewidth=1.5, label='SINDy' if c == 0 else "")
+        if not np.isnan(pred_train_symantic[c]).all():
+            ax.plot(t_eval, pred_train_symantic[c, :, 0], 'm:', linewidth=1.5, label='SyMANTIC' if c == 0 else "")
+
+        ax.axvline(x=T_SPLIT, color='gray', linestyle=':', label='Time Boundary' if c == 0 else "")
+        ic_val = train_ics_show[c, 0]
+        ax.set_title(f"Train IC {c+1} ($w_0$ = {ic_val:.3f})", fontsize=18)
+        ax.grid(True, linestyle=":", alpha=0.5)
+        
+        # Configure fonts and labels for top row
+        ax.set_xlabel("Time, t", fontsize=18)
+        ax.set_ylabel("w(t)", fontsize=18)
+        ax.tick_params(axis='both', which='major', labelsize=18)
+        if c == 0:
+            ax.legend(fontsize=18, loc="best")
+
+    # Plot Test/OOD ICs (bottom row: axes[1, c])
+    for c in range(3):
+        ax = axes[1, c]
+        ax.plot(t_eval, clean_full_test[c, :, 0], 'k-', linewidth=2, label='True (Clean)' if c == 0 else "")
+        ax.plot(t_eval, pred_test_node[c, :, 0], 'b--', linewidth=1.5, label='NODE' if c == 0 else "")
+
+        if not np.isnan(pred_test_sindy[c]).all():
+            ax.plot(t_eval, pred_test_sindy[c, :, 0], 'g-.', linewidth=1.5, label='SINDy' if c == 0 else "")
+        if not np.isnan(pred_test_symantic[c]).all():
+            ax.plot(t_eval, pred_test_symantic[c, :, 0], 'm:', linewidth=1.5, label='SyMANTIC' if c == 0 else "")
+
+        ic_val = test_ics_show[c, 0]
+        ax.set_title(f"OOD IC {c+1} ($w_0$ = {ic_val:.3f})", fontsize=18)
+        ax.grid(True, linestyle=":", alpha=0.5)
+        
+        # Configure fonts and labels for bottom row
+        ax.set_xlabel("Time, t", fontsize=18)
+        ax.set_ylabel("w(t)", fontsize=18)
+        ax.tick_params(axis='both', which='major', labelsize=18)
+        if c == 0:
+            ax.legend(fontsize=18, loc="best")
+
+    plt.tight_layout()
+
+    paper_figures_dir = SCRIPT_DIR / "results" / "paper_figures"
+    os.makedirs(paper_figures_dir, exist_ok=True)
+    plot_path = paper_figures_dir / f"paper_figure_noise_{noise_std}.png"
+    plt.savefig(plot_path, dpi=200, bbox_inches="tight")
+    plt.close()
+    print(f"Saved publication figure to {plot_path}")
+
+
 # ---------------------------------------------------------------------------
 # Main routine
 # ---------------------------------------------------------------------------
-
 def main():
     print("=" * 70)
     print("GENERATING NOISE STUDY PLOTS (WITHOUT SR SWEET RERUN)")
@@ -431,16 +557,20 @@ def main():
         model.eval()
         print(f"Loaded NODE model from {model_path}")
 
-        # Get SINDy and SyMANTIC equations for this noise level
+        # Get SINDy and SyMANTIC equations/model for this noise level
         noise_key = str(std)
         sindy_eqs = eq_json["discovered"].get(noise_key, {}).get("sindy", [])
         symantic_eqs = eq_json["discovered"].get(noise_key, {}).get("symantic", [])
+        
+        # Fit SINDy model on the fly to get full precision coefficients for plotting
+        splits = dataset_splits[std]
+        sindy_model = get_sindy_model(model, splits, std) if sindy_eqs else None
 
         # Generate plots
-        splits = dataset_splits[std]
-        plot_16_trajectories_ext_t(model, sindy_eqs, symantic_eqs, splits, t_eval, std)
-        plot_16_trajectories_ext_x0(model, sindy_eqs, symantic_eqs, splits, t_eval, std)
-        plot_metrics_distribution(model, sindy_eqs, symantic_eqs, splits, t_eval, t_split_index, std)
+        plot_16_trajectories_ext_t(model, sindy_model, symantic_eqs, splits, t_eval, std)
+        plot_16_trajectories_ext_x0(model, sindy_model, symantic_eqs, splits, t_eval, std)
+        plot_metrics_distribution(model, sindy_model, symantic_eqs, splits, t_eval, t_split_index, std)
+        plot_paper_figure(model, sindy_model, symantic_eqs, splits, t_eval, t_train, std)
 
     print("\n" + "=" * 70)
     print("All plots generated successfully!")
