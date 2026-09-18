@@ -29,11 +29,11 @@ The resulting symbolic ODE inherits the global mathematical properties of its co
 │                                              │                          │
 │                                              ▼                          │
 │                                     ┌────────────────┐                  │
-│                                     │   SINDy         │                  │
-│                                     │   (Polynomial)  │                  │
+│                                     │   SINDy        │                  │
+│                                     │   (Polynomial) │                  │
 │                                     ├────────────────┤                  │
-│                                     │   SyMANTIC      │                  │
-│                                     │   (Rational)    │                  │
+│                                     │   SyMANTIC     │                  │
+│                                     │   (Rational)   │                  │
 │                                     └────────┬───────┘                  │
 │                                              │                          │
 │                                              ▼                          │
@@ -44,6 +44,7 @@ The resulting symbolic ODE inherits the global mathematical properties of its co
 ```
 
 **Key insight**: By fitting symbolic regression to the NODE's *in-domain* gradients rather than raw noisy data, the pipeline:
+
 - **Denoises** the observations through the Neural ODE's smooth trajectory fitting.
 - **Discovers** the correct functional form (including rational terms) from clean gradient data.
 - **Extrapolates** reliably because the symbolic expression's algebraic structure governs behavior outside the training domain.
@@ -142,6 +143,7 @@ python casestudy/run_noise_study_updated.py
 ```
 
 This will:
+
 1. Generate 80 Sobol-sampled trajectories from the Spruce-budworm ODE
 2. Add observation noise at levels σ ∈ {0.0, 0.02, 0.05, 0.1}
 3. Train a Neural ODE for each noise level
@@ -211,6 +213,7 @@ Performance summary across noise levels (trajectory-level R² on clean ground tr
 |            | **SyMANTIC**| **0.9999**| **0.9989**      | **0.9995**       |
 
 **Key findings**:
+
 - **SyMANTIC** achieves near-perfect out-of-distribution extrapolation (R² ≥ 0.999) by discovering the correct rational functional form.
 - **Neural ODEs** excel at interpolation but fail under state extrapolation due to the lack of structure-preserving constraints outside the training domain.
 - **SINDy** (polynomial basis) provides moderate extrapolation but cannot capture the rational saturation behavior, leading to divergence at large state values.
@@ -222,10 +225,10 @@ If you use this code in your research, please cite:
 
 ```bibtex
 @article{node_distillation_2026,
-  title     = {Neural ODE Distillation via Symbolic Regression for Interpretable and Extrapolable Dynamic Models},
-  author    = {Peng, You and others},
+  title     = {Symbolic Distillation of Neural Ordinary Differential Equations: Application to Catalyst Life Cycle Monitoring},
+  author    = {You Peng, Madhav Muthyala, Ivan Castillo, and Joel A. Paulson},
   year      = {2026},
-  note      = {Paper submitted}
+  note      = {Submitted and Accepted to FOCAPO 2027}
 }
 ```
 
@@ -235,5 +238,5 @@ This project is released for academic and research use. Please see the accompany
 
 ## Acknowledgments
 
-- **SyMANTIC** symbolic regression library by Madhav Muthyala ([muthyala.7](mailto:muthyala.7@osu.edu))
+- **SyMANTIC** symbolic regression library by [PaulsonLab](https://github.com/PaulsonLab/SyMANTIC)
 - Built with [PyTorch](https://pytorch.org/), [torchdiffeq](https://github.com/rtqichen/torchdiffeq), and [PySINDy](https://github.com/dynamicslab/pysindy)
